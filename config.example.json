@@ -1,0 +1,9 @@
+{
+  "baseUrl": "https://your-endpoint/v1",
+  "apiKey": "sk-...",
+  "model": "kimi-for-coding",
+  "maxIterations": 25,
+  "maxToolOutputChars": 4000,
+  "keepRecentTurns": 20,
+  "pricing": { "input": 0, "output": 0 }
+}

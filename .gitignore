@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+/zent
+*.exe
+
+# local config & session logs (may contain secrets)
+.env
+*.local
+config.json
+
+# assistant / editor local tooling (not part of the agent source)
+.claude/
+.cursor/
+.opencode/
+.trellis/
+AGENTS.md
+
+# OS
+.DS_Store
+Thumbs.db
