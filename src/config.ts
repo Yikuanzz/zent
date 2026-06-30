@@ -9,10 +9,12 @@ import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import type { Config, Pricing } from './core/types.ts';
 
+// Default config directory and path
 export const DEFAULT_CONFIG_DIR = join(homedir(), '.zent');
 export const DEFAULT_CONFIG_PATH = join(DEFAULT_CONFIG_DIR, 'config.json');
 export const SESSIONS_DIR = join(DEFAULT_CONFIG_DIR, 'sessions');
 
+// Default config values
 const DEFAULTS = {
   maxIterations: 25,
   maxToolOutputChars: 4000,
@@ -20,12 +22,13 @@ const DEFAULTS = {
   contextWindow: 128000,
 } as const;
 
+// Command line overrides
 export interface CliOverrides {
-  configPath?: string;
-  model?: string;
-  cwd?: string;
-  baseUrl?: string;
-  apiKey?: string;
+  configPath?: string; // Path to config file
+  model?: string; // Model name
+  cwd?: string; // Working directory
+  baseUrl?: string; // Base URL for the API
+  apiKey?: string; // API key
 }
 
 interface RawConfig {

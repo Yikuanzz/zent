@@ -10,6 +10,7 @@
     "dev": "bun run bin/cli.tsx",
     "headless": "bun run scripts/runHeadless.ts",
     "test": "bun test",
+    "format": "prettier --write .",
     "build": "bun build --compile bin/cli.tsx --outfile zent"
   },
   "dependencies": {

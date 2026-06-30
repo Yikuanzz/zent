@@ -17,6 +17,7 @@ config.json
 .opencode/
 .trellis/
 AGENTS.md
+.vscode/
 
 # OS
 .DS_Store
