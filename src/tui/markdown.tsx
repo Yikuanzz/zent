@@ -1,37 +1,36 @@
 /**
- * Minimal Markdown renderer for the conversation view. Supports the constructs
- * that matter for a coding agent: fenced code blocks (syntax-highlighted via
- * cli-highlight), inline `code`, and **bold**. Everything else renders as text.
+ * Streaming-aware Markdown renderer. Matches Claude Code's behavior:
  *
- * cli-highlight emits ANSI escape codes which Ink's <Text> passes through.
+ *   - While streaming (`streaming=true`): render inline formatting (`code`,
+ *     **bold**) as soon as the markers close; keep fenced code blocks as plain
+ *     text until the closing fence arrives, then highlight them.
+ *   - When complete (`streaming=false`): full render, including syntax
+ *     highlighting for closed fenced code blocks.
+ *
+ * This avoids the jarring "half-formed code block" effect while still giving
+ * live inline styling.
  */
 import React from 'react';
 import { Box, Text } from 'ink';
 import { highlight } from 'cli-highlight';
 
-const FENCE_RE = /```(\w*)\n?([\s\S]*?)```/g;
 const INLINE_RE = /(`[^`]+`|\*\*[^*]+\*\*)/g;
 
-function renderInline(text: string, keyBase: string): React.ReactNode[] {
+function renderInline(text: string, keyBase: string, color: string): React.ReactNode[] {
   const parts = text.split(INLINE_RE).filter((s) => s !== '');
   return parts.map((part, i) => {
     const key = `${keyBase}-${i}`;
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
         <Text key={key} backgroundColor="#222" color="#d7d7d7">
-          {' '}
-          {part.slice(1, -1)}{' '}
+          {part.slice(1, -1)}
         </Text>
       );
     }
     if (part.startsWith('**') && part.endsWith('**')) {
-      return (
-        <Text key={key} bold>
-          {part.slice(2, -2)}
-        </Text>
-      );
+      return <Text key={key} bold>{part.slice(2, -2)}</Text>;
     }
-    return <Text key={key}>{part}</Text>;
+    return <Text key={key} color={color}>{part}</Text>;
   });
 }
 
@@ -43,46 +42,86 @@ function highlightCode(code: string, lang: string): string {
   }
 }
 
-/** Render markdown text as Ink nodes. `tone` sets the base text color. */
-export function Markdown({ text, color = '#e0e0e0' }: { text: string; color?: string }) {
-  const blocks: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let idx = 0;
+interface MarkdownProps {
+  text: string;
+  color?: string;
+  streaming?: boolean;
+}
 
-  FENCE_RE.lastIndex = 0;
-  while ((match = FENCE_RE.exec(text)) !== null) {
-    const before = text.slice(lastIndex, match.index);
-    if (before.trim()) {
-      blocks.push(
-        <Text key={`t-${idx}`} color={color}>
-          {renderInline(before.replace(/\n+$/, ''), `t-${idx}`)}
-        </Text>,
-      );
+function segment(text: string, streaming: boolean): { type: 'plain' | 'code'; lang: string; content: string }[] {
+  const lines = text.split('\n');
+  const out: { type: 'plain' | 'code'; lang: string; content: string }[] = [];
+  let buffer: string[] = [];
+  let inCode = false;
+  let codeLang = '';
+  let codeBuffer: string[] = [];
+
+  const flushPlain = () => {
+    if (buffer.length) {
+      out.push({ type: 'plain', lang: '', content: buffer.join('\n') });
+      buffer = [];
     }
-    const lang = match[1] ?? '';
-    const code = match[2] ?? '';
-    blocks.push(
-      <Box key={`c-${idx}`} flexDirection="column" borderStyle="round" borderColor="#444" paddingX={1}>
-        {highlightCode(code, lang)
-          .split('\n')
-          .map((line, li) => (
-            <Text key={li}>{line}</Text>
-          ))}
-      </Box>,
-    );
-    lastIndex = FENCE_RE.lastIndex;
-    idx++;
+  };
+
+  for (const line of lines) {
+    const fenceMatch = line.match(/^(```+)\s*(\w*)/);
+    if (fenceMatch) {
+      if (!inCode) {
+        flushPlain();
+        inCode = true;
+        codeLang = fenceMatch[2] ?? '';
+        codeBuffer = [];
+      } else {
+        out.push({ type: 'code', lang: codeLang, content: codeBuffer.join('\n') });
+        inCode = false;
+        codeLang = '';
+        codeBuffer = [];
+      }
+      continue;
+    }
+    if (inCode) {
+      codeBuffer.push(line);
+    } else {
+      buffer.push(line);
+    }
   }
 
-  const tail = text.slice(lastIndex);
-  if (tail.trim()) {
-    blocks.push(
-      <Text key={`t-${idx}`} color={color}>
-        {renderInline(tail.replace(/\n+$/, ''), `t-${idx}`)}
-      </Text>,
-    );
+  flushPlain();
+
+  if (inCode) {
+    const rest = '```' + (codeLang ? ` ${codeLang}` : '') + (codeBuffer.length ? '\n' + codeBuffer.join('\n') : '');
+    out.push({ type: streaming ? 'plain' : 'plain', lang: '', content: rest });
   }
 
-  return <Box flexDirection="column">{blocks}</Box>;
+  return out;
+}
+
+export function Markdown({ text, color = '#e0e0e0', streaming = false }: MarkdownProps) {
+  const segments = segment(text, streaming);
+
+  return (
+    <Box flexDirection="column">
+      {segments.map((seg, i) => {
+        if (seg.type === 'plain') {
+          return (
+            <Box key={`p-${i}`} flexDirection="column">
+              {seg.content.split('\n').map((line, li) => (
+                <Text key={li}>{renderInline(line, `${i}-${li}`, color)}</Text>
+              ))}
+            </Box>
+          );
+        }
+
+        return (
+          <Box key={`c-${i}`} flexDirection="column" borderStyle="round" borderColor="#444" paddingX={1}>
+            {highlightCode(seg.content, seg.lang)
+              .split('\n')
+              .map((line, li) => (
+                <Text key={li}>{line}</Text>
+              ))}
+          </Box>
+        );
+      })}
+    </Box>
+  );
 }

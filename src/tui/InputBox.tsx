@@ -143,7 +143,7 @@ export function InputBox({ active, cwd, onSubmit }: Props) {
         <Box flexDirection="column" paddingX={1}>
           {completion.candidates.map((c, i) => (
             <Text key={c} color={i === completion.index ? '#d79921' : undefined} dimColor={i !== completion.index}>
-              {i === completion.index ? '❯ ' : '  '}
+              {i === completion.index ? '> ' : '  '}
               {c}
             </Text>
           ))}
@@ -157,14 +157,14 @@ export function InputBox({ active, cwd, onSubmit }: Props) {
         borderRight={false}
         paddingX={1}
       >
-        <Text color="#d79921">{'❯ '}</Text>
+        <Text color="#d79921">{'> '}</Text>
         <Text>
           {buffer.length ? buffer : <Text dimColor>Ask anything…</Text>}
           {active && <Text inverse> </Text>}
         </Text>
       </Box>
       <Box paddingX={1}>
-        <Text dimColor>⏎ send · \ newline · @ files · ↑↓ history · esc stop</Text>
+        <Text dimColor>enter send · \ newline · @ files · ↑↓ history · esc stop</Text>
       </Box>
     </Box>
   );

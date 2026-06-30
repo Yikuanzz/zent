@@ -2,14 +2,14 @@
  * App: single-column layout (Claude Code style) + focus state machine.
  *
  *   [ conversation flow .................................. ]
- *   [ spinner | approval | review | input               ]
+ *   [ spinner | approval menu | review | input           ]
  *   [ hint line (dim shortcuts)                          ]
  *   [ status bar (tokens · cwd · model)                  ]
  *
  * Focus modes:
  *   input    — typing (InputBox active). Esc → review. Ctrl+O → expand latest.
  *   running  — agent working (spinner). Esc → abort.
- *   approval — dangerous tool awaiting y/n.
+ *   approval — selectable menu for dangerous tool. ↑/↓ + Enter, or y/n.
  *   review   — ↑/↓ select tool items; Enter toggles; Esc → input.
  */
 import React, { useMemo, useState } from 'react';
@@ -18,6 +18,7 @@ import { ConversationView } from './ConversationView.tsx';
 import { StatusBar } from './StatusBar.tsx';
 import { Spinner } from './Spinner.tsx';
 import { InputBox } from './InputBox.tsx';
+import { ApprovalPrompt, APPROVAL_OPTIONS } from './ApprovalPrompt.tsx';
 import { useAgent } from './useAgent.ts';
 import { injectMentions } from './injectMentions.ts';
 import type { FocusMode } from './types.ts';
@@ -32,13 +33,12 @@ interface Props {
   logger?: SessionLogger;
 }
 
-const ACCENT = '#d79921';
-
 export function App({ config, client, tools, systemPrompt, logger }: Props) {
   const { exit } = useApp();
   const agent = useAgent({ config, client, tools, systemPrompt, logger });
   const [reviewSel, setReviewSel] = useState<number | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  const [approvalSel, setApprovalSel] = useState(0);
 
   const mode: FocusMode = agent.pendingApproval
     ? 'approval'
@@ -55,8 +55,35 @@ export function App({ config, client, tools, systemPrompt, logger }: Props) {
 
   useInput((input, key) => {
     if (mode === 'approval') {
-      if (input?.toLowerCase() === 'y') agent.respondApproval(true);
-      else if (input?.toLowerCase() === 'n' || key.escape) agent.respondApproval(false);
+      const call = agent.pendingApproval;
+      if (!call) return;
+      const options = APPROVAL_OPTIONS(call.name);
+
+      if (key.return) {
+        if (approvalSel === 0) agent.respondApproval(true);
+        else if (approvalSel === 1) agent.respondApproval(true, true);
+        else agent.respondApproval(false);
+        setApprovalSel(0);
+        return;
+      }
+      if (key.upArrow) {
+        setApprovalSel((s) => Math.max(0, s - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setApprovalSel((s) => Math.min(options.length - 1, s + 1));
+        return;
+      }
+      if (input?.toLowerCase() === 'y') {
+        agent.respondApproval(true);
+        setApprovalSel(0);
+        return;
+      }
+      if (input?.toLowerCase() === 'n' || key.escape) {
+        agent.respondApproval(false);
+        setApprovalSel(0);
+        return;
+      }
       return;
     }
 
@@ -100,19 +127,14 @@ export function App({ config, client, tools, systemPrompt, logger }: Props) {
   return (
     <Box flexDirection="column">
       <Box paddingX={1}>
-        <Text color={ACCENT}>● </Text>
-        <Text dimColor>zent</Text>
+        <Text color="#7c6f64">zent</Text>
       </Box>
 
       <ConversationView items={agent.items} selectedId={reviewSel} reviewMode={mode === 'review'} />
 
       <Box marginTop={1} flexDirection="column">
         {mode === 'approval' && agent.pendingApproval ? (
-          <Box paddingX={1}>
-            <Text color={ACCENT}>
-              ⏵ {agent.pendingApproval.name}({JSON.stringify(agent.pendingApproval.args)}) — run? [y/N]
-            </Text>
-          </Box>
+          <ApprovalPrompt call={agent.pendingApproval} selected={approvalSel} />
         ) : mode === 'running' ? (
           <Spinner usage={agent.usage} startedAt={agent.runStartedAt} />
         ) : mode === 'review' ? (

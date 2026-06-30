@@ -1,15 +1,14 @@
 /**
- * ConversationView: single-column vertical flow, Claude Code style.
+ * ConversationView: single-column vertical flow, Claude Code style, ASCII-clean.
  *
- *   user        → "❯ text" (accent prefix)
- *   thinking    → plain dim narration (calm, recedes)
- *   plan        → inline checklist ([x]/[>]/[ ]/[-])
- *   tool        → tree form:  ⏺ name(args)
- *                              ⎿ summary (duration)   [expandable]
- *   finish      → markdown-rendered answer (light foreground)
- *   error       → red ⏺ line
+ *   user      → "> text"
+ *   assistant → markdown answer (light foreground)
+ *   plan      → inline checklist ([x]/[>]/[ ]/[-])
+ *   tool      → "- name(args)" then indented "summary · 12ms  [+]"
+ *               ([+] collapsed / [-] expanded; status carried by color)
+ *   error     → "! text" (red)
  *
- * No boxes, no side panel. Indentation + a single accent carry the hierarchy.
+ * No boxes, no glyphs. Indentation + a single accent carry the hierarchy.
  */
 import React from 'react';
 import { Box, Text } from 'ink';
@@ -17,12 +16,6 @@ import type { DisplayItem } from './types.ts';
 import { Markdown } from './markdown.tsx';
 
 const ACCENT = '#d79921'; // muted amber, used sparingly
-const DOT_COLOR: Record<string, string> = {
-  running: ACCENT,
-  ok: '#98971a',
-  failed: '#cc241d',
-  denied: '#cc241d',
-};
 const PLAN_MARK: Record<string, { mark: string; color?: string; dim?: boolean }> = {
   pending: { mark: '[ ]', dim: true },
   running: { mark: '[>]', color: ACCENT },
@@ -42,20 +35,28 @@ function argsPreview(args: Record<string, unknown>): string {
 }
 
 function ToolItem({ item, selected }: { item: Extract<DisplayItem, { kind: 'tool' }>; selected: boolean }) {
-  const dot = DOT_COLOR[item.status] ?? '#7c6f64';
+  const nameColor =
+    item.status === 'failed'
+      ? '#cc241d'
+      : item.status === 'denied'
+        ? '#7c6f64'
+        : item.status === 'ok'
+          ? '#d5c4a1'
+          : ACCENT; // awaiting / running
   const dur = fmtDuration(item.durationMs);
+  const canExpand = !!item.full && (item.status === 'ok' || item.status === 'failed');
   return (
     <Box flexDirection="column">
       <Text>
-        <Text color={dot}>⏺</Text> <Text color="#d5c4a1">{item.name}</Text>
+        {selected ? <Text color={ACCENT}>{'> '}</Text> : <Text dimColor>{'- '}</Text>}
+        <Text color={nameColor}>{item.name}</Text>
         <Text dimColor>({argsPreview(item.args)})</Text>
-        {selected ? <Text color={ACCENT}>{'  ◂'}</Text> : null}
       </Text>
       <Text>
-        {'  '}
-        <Text dimColor>⎿ {item.status === 'running' ? 'running…' : item.summary}</Text>
-        {dur ? <Text dimColor> ({dur})</Text> : null}
-        {item.collapsed && item.status !== 'running' && item.full ? <Text dimColor> · o</Text> : null}
+        {'    '}
+        <Text dimColor>{item.summary}</Text>
+        {dur ? <Text dimColor> · {dur}</Text> : null}
+        {canExpand ? <Text dimColor>{item.collapsed ? '  [+]' : '  [-]'}</Text> : null}
       </Text>
       {!item.collapsed &&
         item.full
@@ -63,7 +64,7 @@ function ToolItem({ item, selected }: { item: Extract<DisplayItem, { kind: 'tool
           .slice(0, 80)
           .map((line, i) => (
             <Text key={i} dimColor>
-              {'    '}
+              {'      '}
               {line}
             </Text>
           ))}
@@ -87,18 +88,14 @@ export function ConversationView({
           case 'user':
             return (
               <Box key={item.id} marginTop={1}>
-                <Text color={ACCENT}>❯ </Text>
+                <Text color={ACCENT}>{'> '}</Text>
                 <Text>{item.text}</Text>
               </Box>
             );
           case 'assistant':
             return (
               <Box key={item.id} marginTop={1} flexDirection="column">
-                {item.done ? (
-                  <Markdown text={item.text} color="#ebdbb2" />
-                ) : (
-                  <Text color="#ebdbb2">{item.text}</Text>
-                )}
+                <Markdown text={item.text} color="#ebdbb2" streaming={!item.done} />
               </Box>
             );
           case 'plan':
@@ -126,7 +123,7 @@ export function ConversationView({
           case 'error':
             return (
               <Box key={item.id} marginTop={1}>
-                <Text color="#cc241d">⏺ {item.text}</Text>
+                <Text color="#cc241d">! {item.text}</Text>
               </Box>
             );
         }

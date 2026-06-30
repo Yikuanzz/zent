@@ -40,7 +40,7 @@ export interface UseAgent {
   pendingApproval: ToolCall | null;
   runStartedAt: number;
   submit: (displayText: string, modelText?: string) => void;
-  respondApproval: (approved: boolean) => void;
+  respondApproval: (approved: boolean, remember?: boolean) => void;
   abort: () => void;
   toggleCollapse: (id: number) => void;
   expandLatestTool: () => void;
@@ -60,6 +60,8 @@ export function useAgent(args: UseAgentArgs): UseAgent {
   const messagesRef = useRef<Message[]>([{ role: 'system', content: systemPrompt }]);
   const abortRef = useRef<AbortController | null>(null);
   const approvalResolver = useRef<((d: ApprovalDecision) => void) | null>(null);
+  const pendingCallRef = useRef<ToolCall | null>(null);
+  const alwaysApprove = useRef<Set<string>>(new Set());
   const idRef = useRef(0);
   const liveThinkingId = useRef<number | null>(null);
   const lastAssistantText = useRef('');
@@ -112,6 +114,8 @@ export function useAgent(args: UseAgentArgs): UseAgent {
         break;
       case 'tool_start':
         liveThinkingId.current = null;
+        // update_plan is visualized only as the inline plan checklist, not as a tool line.
+        if (e.call.name === 'update_plan') break;
         setItems((prev) => [
           ...prev,
           {
@@ -120,8 +124,8 @@ export function useAgent(args: UseAgentArgs): UseAgent {
             callId: e.call.id,
             name: e.call.name,
             args: e.call.args,
-            status: 'running',
-            summary: `${e.call.name} 执行中…`,
+            status: e.dangerous ? 'awaiting' : 'running',
+            summary: e.dangerous ? 'waiting for approval…' : `${e.call.name} running…`,
             full: '',
             durationMs: 0,
             collapsed: true,
@@ -217,12 +221,38 @@ export function useAgent(args: UseAgentArgs): UseAgent {
             }
             logger?.logEvent(value);
             if (value.type === 'approval_required') {
-              setPendingApproval(value.call);
-              pending = await new Promise<ApprovalDecision>((resolve) => {
-                approvalResolver.current = resolve;
-              });
-              approvalResolver.current = null;
-              setPendingApproval(null);
+              const call = value.call;
+              if (alwaysApprove.current.has(call.name)) {
+                // Previously approved "don't ask again" for this tool.
+                setItems((prev) =>
+                  prev.map((it) =>
+                    it.kind === 'tool' && it.callId === call.id
+                      ? { ...it, status: 'running', summary: `${call.name} running…` }
+                      : it,
+                  ),
+                );
+                pending = { approved: true };
+              } else {
+                pendingCallRef.current = call;
+                setPendingApproval(call);
+                const decision = await new Promise<ApprovalDecision>((resolve) => {
+                  approvalResolver.current = resolve;
+                });
+                approvalResolver.current = null;
+                setPendingApproval(null);
+                pendingCallRef.current = null;
+                // Reflect the decision on the tool card before it runs.
+                if (decision?.approved) {
+                  setItems((prev) =>
+                    prev.map((it) =>
+                      it.kind === 'tool' && it.callId === call.id
+                        ? { ...it, status: 'running', summary: `${call.name} running…` }
+                        : it,
+                    ),
+                  );
+                }
+                pending = decision;
+              }
             } else {
               applyEvent(value);
             }
@@ -240,7 +270,10 @@ export function useAgent(args: UseAgentArgs): UseAgent {
     [isRunning, client, config, tools, logger, applyEvent],
   );
 
-  const respondApproval = useCallback((approved: boolean) => {
+  const respondApproval = useCallback((approved: boolean, remember: boolean = false) => {
+    if (remember && approved && pendingCallRef.current) {
+      alwaysApprove.current.add(pendingCallRef.current.name);
+    }
     approvalResolver.current?.({ approved });
   }, []);
 

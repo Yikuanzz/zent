@@ -7,8 +7,18 @@ import React, { useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { TokenUsage } from '../core/types.ts';
 
-const FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+const FRAMES = ['|', '/', '-', '\\'];
 const ACCENT = '#d79921';
+
+/** Format elapsed seconds: "45s" / "2m 5s" / "1h 3m 5s". */
+function fmtElapsed(totalSec: number): string {
+  if (totalSec < 60) return `${totalSec}s`;
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+}
 
 export function Spinner({ usage, startedAt }: { usage: TokenUsage | null; startedAt: number }) {
   const [frame, setFrame] = useState(0);
@@ -30,7 +40,7 @@ export function Spinner({ usage, startedAt }: { usage: TokenUsage | null; starte
       <Text color={ACCENT}>{FRAMES[frame]}</Text>
       <Text dimColor>
         {' '}
-        Working…  ({elapsed}s · {tokenStr}){'   '}
+        Working…  ({fmtElapsed(elapsed)} · {tokenStr}){'   '}
       </Text>
       <Text dimColor>esc to interrupt</Text>
     </Box>

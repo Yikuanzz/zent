@@ -14,7 +14,7 @@ export type DisplayItem =
       callId: string;
       name: string;
       args: ToolCall['args'];
-      status: 'running' | 'ok' | 'failed' | 'denied';
+      status: 'awaiting' | 'running' | 'ok' | 'failed' | 'denied';
       summary: string;
       full: string;
       durationMs: number;
