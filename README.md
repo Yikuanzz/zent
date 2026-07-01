@@ -62,6 +62,9 @@ bun run scripts/runHeadless.ts --auto "<任务>"   # 自动批准危险工具
 bun test
 bunx tsc --noEmit
 bun build --compile bin/cli.tsx --outfile zent
+
+# 端到端 smoke 测试（需要真实 API，建议加 --yolo 自动审批）
+bun run scripts/e2e.ts --yolo
 ```
 
 也可用环境变量 `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL`，或 CLI 参数 `--model` / `--config` / `--base-url` / `--cwd` / `--approval-mode` / `--yolo` 覆盖配置。

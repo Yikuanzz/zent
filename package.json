@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "bun run bin/cli.tsx",
     "headless": "bun run scripts/runHeadless.ts",
+    "e2e": "bun run scripts/e2e.ts",
     "test": "bun test",
     "format": "prettier --write .",
     "build": "bun build --compile bin/cli.tsx --outfile zent"
