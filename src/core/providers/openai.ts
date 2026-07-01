@@ -9,31 +9,70 @@ import OpenAI from 'openai';
 import type { ChatChunk, Config, JSONSchema, LLMClient, Message } from '../types.ts';
 
 function toOpenAIMessages(messages: Message[]): OpenAI.ChatCompletionMessageParam[] {
-  return messages.map((m) => {
+  // Validate / repair: every assistant message with tool_calls must be followed
+  // by tool messages whose tool_call_id matches each tool_call.id. If a response
+  // is missing, inject a synthetic "empty" tool response so the API accepts the
+  // conversation rather than crashing with 400.
+  const responded = new Set<string>();
+  const repairIds: string[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m?.role === 'tool' && m.tool_call_id) {
+      responded.add(m.tool_call_id);
+    }
+  }
+
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m?.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) {
+      for (const tc of m.tool_calls) {
+        if (!responded.has(tc.id)) {
+          repairIds.push(tc.id);
+        }
+      }
+    }
+  }
+
+  const out: OpenAI.ChatCompletionMessageParam[] = [];
+  for (const m of messages) {
     if (m.role === 'assistant') {
-      return {
+      const toolCalls = m.tool_calls ?? [];
+      const hasTools = toolCalls.length > 0;
+      out.push({
         role: 'assistant',
-        content: m.content ?? '',
-        ...(m.tool_calls && m.tool_calls.length > 0
+        // OpenAI requires content to be null (not empty string) when tool_calls are present.
+        content: hasTools ? null : (m.content ?? ''),
+        ...(hasTools
           ? {
-              tool_calls: m.tool_calls.map((tc) => ({
+              tool_calls: toolCalls.map((tc) => ({
                 id: tc.id,
                 type: 'function' as const,
                 function: { name: tc.name, arguments: JSON.stringify(tc.args) },
               })),
             }
           : {}),
-      };
+      });
+      continue;
     }
     if (m.role === 'tool') {
-      return {
+      out.push({
         role: 'tool',
         content: m.content ?? '',
         tool_call_id: m.tool_call_id!,
-      };
+      });
+      continue;
     }
-    return { role: m.role, content: m.content ?? '' } as OpenAI.ChatCompletionMessageParam;
-  });
+    out.push({ role: m.role, content: m.content ?? '' } as OpenAI.ChatCompletionMessageParam);
+  }
+
+  for (const id of repairIds) {
+    // eslint-disable-next-line no-console
+    console.error(`[zent] warning: tool_call_id ${id} missing response; injecting placeholder.`);
+    out.push({ role: 'tool', content: '[tool response missing]', tool_call_id: id });
+  }
+
+  return out;
 }
 
 function toOpenAITools(
