@@ -65,6 +65,66 @@ describe('edit_file (strict match, 3 branches)', () => {
   });
 });
 
+describe('edit_file (fuzzy match)', () => {
+  test('indentation difference: uniform offset still matches', async () => {
+    writeFileSync(join(dir, 'd.txt'), '    function foo() {\n        return 1;\n    }');
+    const r = await editFileTool.run(
+      { path: 'd.txt', old_string: '  function foo() {\n      return 1;\n  }', new_string: '  function bar() {\n      return 2;\n  }' },
+      ctx(),
+    );
+    expect(r.ok).toBe(true);
+    expect(readFileSync(join(dir, 'd.txt'), 'utf8')).toBe('  function bar() {\n      return 2;\n  }');
+  });
+  test('trailing whitespace ignored', async () => {
+    writeFileSync(join(dir, 'e.txt'), 'hello world');
+    const r = await editFileTool.run(
+      { path: 'e.txt', old_string: 'hello world   ', new_string: 'hello WORLD' },
+      ctx(),
+    );
+    expect(r.ok).toBe(true);
+    expect(readFileSync(join(dir, 'e.txt'), 'utf8')).toBe('hello WORLD');
+  });
+  test('leading/trailing blank lines ignored', async () => {
+    writeFileSync(join(dir, 'f.txt'), 'a\nb\nc');
+    const r = await editFileTool.run(
+      { path: 'f.txt', old_string: '\n\nb\n\n', new_string: 'B' },
+      ctx(),
+    );
+    expect(r.ok).toBe(true);
+    expect(readFileSync(join(dir, 'f.txt'), 'utf8')).toBe('a\nB\nc');
+  });
+  test('CRLF vs LF equivalence', async () => {
+    writeFileSync(join(dir, 'g.txt'), 'line1\r\nline2\r\nline3');
+    const r = await editFileTool.run(
+      { path: 'g.txt', old_string: 'line1\nline2', new_string: 'LINE1\nLINE2' },
+      ctx(),
+    );
+    expect(r.ok).toBe(true);
+    expect(readFileSync(join(dir, 'g.txt'), 'utf8')).toBe('LINE1\nLINE2\r\nline3');
+  });
+  test('multiple fuzzy matches still error', async () => {
+    writeFileSync(join(dir, 'h.txt'), '  x\n  x\n  x');
+    const r = await editFileTool.run(
+      { path: 'h.txt', old_string: 'x\n', new_string: 'y\n' },
+      ctx(),
+    );
+    expect(r.ok).toBe(false);
+    expect(r.full).toContain('匹配');
+    expect(r.full).toContain('更长');
+  });
+  test('diff summary reports line number and counts', async () => {
+    writeFileSync(join(dir, 'i.txt'), 'one\ntwo\nthree');
+    const r = await editFileTool.run(
+      { path: 'i.txt', old_string: 'two', new_string: 'TWO\n2.5' },
+      ctx(),
+    );
+    expect(r.ok).toBe(true);
+    expect(r.summary).toContain('第 2 行');
+    expect(r.summary).toContain('-1 行');
+    expect(r.summary).toContain('+2 行');
+  });
+});
+
 describe('run_shell', () => {
   test('captures exit 0', async () => {
     const r = await runShellTool.run({ command: 'echo hi' }, ctx());
