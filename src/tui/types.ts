@@ -23,7 +23,7 @@ export type DisplayItem =
   | { kind: 'finish'; id: number; text: string }
   | { kind: 'error'; id: number; text: string };
 
-export type FocusMode = 'input' | 'running' | 'approval' | 'review';
+export type FocusMode = 'input' | 'running' | 'approval' | 'suggest' | 'review';
 
 export interface PlanState {
   steps: PlanStep[];

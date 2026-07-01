@@ -19,12 +19,14 @@ export function StatusBar({
   cwd,
   model,
   cost,
+  approvalMode,
 }: {
   usage: TokenUsage | null;
   contextWindow: number;
   cwd: string;
   model: string;
   cost: number | null;
+  approvalMode?: string;
 }) {
   const used = usage?.total ?? 0;
   const pct = contextWindow > 0 ? Math.min(100, Math.round((used / contextWindow) * 100)) : 0;
@@ -33,6 +35,7 @@ export function StatusBar({
     <Box paddingX={1}>
       <Text dimColor>
         {tokenStr} tokens ({pct}%) · {shortCwd(cwd)} · {model}
+        {approvalMode ? ` · ${approvalMode}` : ''}
         {cost != null ? ` · $${cost.toFixed(4)}` : ''}
       </Text>
     </Box>

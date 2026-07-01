@@ -17,8 +17,10 @@ function parseArgs(argv: string[]): CliOverrides {
     else if (a === '--config') out.configPath = next();
     else if (a === '--cwd') out.cwd = next();
     else if (a === '--base-url') out.baseUrl = next();
+    else if (a === '--approval-mode') out.approvalMode = next();
+    else if (a === '--yolo') out.approvalMode = 'full-auto';
     else if (a === '--help' || a === '-h') {
-      console.log('用法: zent [--model <m>] [--config <path>] [--cwd <dir>] [--base-url <url>]');
+      console.log('用法: zent [--model <m>] [--config <path>] [--cwd <dir>] [--base-url <url>] [--approval-mode <manual|suggest|full-auto>] [--yolo]');
       process.exit(0);
     }
   }

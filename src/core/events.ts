@@ -8,6 +8,11 @@ export const ev = {
   turnStart: (iteration: number): AgentEvent => ({ type: 'turn_start', iteration }),
   toolStart: (call: ToolCall, dangerous: boolean): AgentEvent => ({ type: 'tool_start', call, dangerous }),
   approvalRequired: (call: ToolCall): AgentEvent => ({ type: 'approval_required', call }),
+  suggestPlanApproval: (plan: PlanStep[], nextCall: ToolCall): AgentEvent => ({
+    type: 'suggest_plan_approval',
+    plan,
+    nextCall,
+  }),
   toolDenied: (call: ToolCall): AgentEvent => ({ type: 'tool_denied', call }),
   toolEnd: (
     callId: string,

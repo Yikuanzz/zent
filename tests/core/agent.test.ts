@@ -41,6 +41,7 @@ function makeConfig(over: Partial<Config> = {}): Config {
     keepRecentTurns: 50,
     contextWindow: 128000,
     cwd: process.cwd(),
+    approvalMode: 'manual',
     ...over,
   };
 }
@@ -83,7 +84,17 @@ function fakeTools(): Record<string, Tool> {
       return { ok: true, summary: 'done', full: String(args.summary ?? '') };
     },
   };
-  return { echo, danger, boom, finish };
+  const updatePlan: Tool = {
+    name: 'update_plan',
+    description: 'plan',
+    dangerous: false,
+    schema: { type: 'object', properties: {} },
+    async run(args) {
+      const steps = (args.steps as Array<{ title: string; status: string }>) ?? [];
+      return { ok: true, summary: 'plan updated', full: 'plan', plan: steps.map((s) => ({ title: s.title, status: s.status as any })) };
+    },
+  };
+  return { echo, danger, boom, finish, update_plan: updatePlan };
 }
 
 /** Drive the generator to completion, optionally answering approvals. */
@@ -207,6 +218,60 @@ describe('runAgent loop', () => {
     expect(turnStarts).toHaveLength(3);
     const finish = events.find((e) => e.type === 'finish');
     expect((finish as { summary: string }).summary).toContain('最大迭代');
+  });
+
+  test('full-auto: dangerous tool runs without approval_required', async () => {
+    const client = mockClient([
+      { tool: { name: 'danger', args: {} } },
+      { tool: { name: 'finish', args: { summary: 'ok' } } },
+    ]);
+    const gen = runAgent({
+      messages: baseMessages(),
+      client,
+      config: makeConfig({ approvalMode: 'full-auto' }),
+      signal: new AbortController().signal,
+      tools: fakeTools(),
+    });
+    const events = await drive(gen, false); // never answer approvals
+    expect(events.some((e) => e.type === 'approval_required')).toBe(false);
+    expect(events.some((e) => e.type === 'suggest_plan_approval')).toBe(false);
+    const end = events.find((e) => e.type === 'tool_end' && e.name === 'danger');
+    expect((end as { ok: boolean }).ok).toBe(true);
+  });
+
+  test('suggest: read-only tools run freely; first dangerous yields suggest_plan_approval', async () => {
+    const client = mockClient([
+      { tool: { name: 'update_plan', args: { steps: [{ title: 'step1', status: 'pending' }] } } },
+      { tool: { name: 'danger', args: {} } },
+      { tool: { name: 'danger', args: {} } },
+      { tool: { name: 'finish', args: { summary: 'ok' } } },
+    ]);
+    const gen = runAgent({
+      messages: baseMessages(),
+      client,
+      config: makeConfig({ approvalMode: 'suggest' }),
+      signal: new AbortController().signal,
+      tools: fakeTools(),
+    });
+
+    const events: AgentEvent[] = [];
+    let pending: ApprovalDecision = undefined;
+    while (true) {
+      const { value, done } = await gen.next(pending);
+      pending = undefined;
+      if (done || !value) break;
+      events.push(value);
+      if (value.type === 'suggest_plan_approval') {
+        expect(value.plan).toHaveLength(1);
+        expect(value.nextCall.name).toBe('danger');
+        pending = { approved: true };
+      }
+    }
+
+    const suggestEvents = events.filter((e) => e.type === 'suggest_plan_approval');
+    expect(suggestEvents).toHaveLength(1);
+    const dangerEnds = events.filter((e) => e.type === 'tool_end' && e.name === 'danger');
+    expect(dangerEnds).toHaveLength(2);
   });
 
   test('pre-aborted signal → aborted event, no model call', async () => {

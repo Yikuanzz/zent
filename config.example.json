@@ -5,5 +5,6 @@
   "maxIterations": 25,
   "maxToolOutputChars": 4000,
   "keepRecentTurns": 20,
+  "approvalMode": "manual",
   "pricing": { "input": 0, "output": 0 }
 }

@@ -55,6 +55,7 @@ export type AgentEvent =
   | { type: 'assistant_message'; content: string }
   | { type: 'tool_start'; call: ToolCall; dangerous: boolean }
   | { type: 'approval_required'; call: ToolCall }
+  | { type: 'suggest_plan_approval'; plan: PlanStep[]; nextCall: ToolCall }
   | { type: 'tool_denied'; call: ToolCall }
   | { type: 'tool_end'; callId: string; name: string; ok: boolean; summary: string; full: string; durationMs: number }
   | { type: 'plan_update'; steps: PlanStep[] }
@@ -65,7 +66,7 @@ export type AgentEvent =
 
 /**
  * Decision passed back INTO the generator via `gen.next(decision)`.
- * Only meaningful right after an `approval_required` event; otherwise undefined.
+ * Meaningful after `approval_required` or `suggest_plan_approval`; otherwise undefined.
  */
 export type ApprovalDecision = { approved: boolean } | undefined;
 
@@ -141,6 +142,8 @@ export interface Pricing {
   output: number;
 }
 
+export type ApprovalMode = 'manual' | 'suggest' | 'full-auto';
+
 export interface Config {
   baseUrl: string;
   apiKey: string;
@@ -155,4 +158,6 @@ export interface Config {
   contextWindow: number;
   /** Working directory; defaults to process.cwd(). */
   cwd: string;
+  /** Dangerous tool approval mode. */
+  approvalMode: ApprovalMode;
 }

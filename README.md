@@ -49,6 +49,11 @@ cp config.example.json ~/.zent/config.json
 # 2) 启动 TUI（在真实终端中运行）
 bun run bin/cli.tsx
 
+# 审批模式
+bun run bin/cli.tsx --yolo                    # full-auto：跳过所有危险工具审批
+bun run bin/cli.tsx --approval-mode suggest   # suggest：先只读探索，确认计划后自动放行
+bun run bin/cli.tsx --approval-mode manual    # manual（默认）：每次危险工具都确认
+
 # 无 UI 跑通 loop（验证核心逻辑、调 prompt 的主战场）
 bun run scripts/runHeadless.ts "读取 README.md 并在末尾追加一行"
 bun run scripts/runHeadless.ts --auto "<任务>"   # 自动批准危险工具
@@ -59,7 +64,7 @@ bunx tsc --noEmit
 bun build --compile bin/cli.tsx --outfile zent
 ```
 
-也可用环境变量 `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL`，或 CLI 参数 `--model` / `--config` / `--base-url` / `--cwd` 覆盖配置。
+也可用环境变量 `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL`，或 CLI 参数 `--model` / `--config` / `--base-url` / `--cwd` / `--approval-mode` / `--yolo` 覆盖配置。
 
 ## TUI 交互
 
@@ -96,6 +101,7 @@ bun build --compile bin/cli.tsx --outfile zent
 | `maxToolOutputChars` | 4000 | 单条工具输出回灌截断阈值 |
 | `keepRecentTurns` | 20 | 历史滑动窗口保留轮数 |
 | `contextWindow` | 128000 | 上下文窗口（状态栏占比用） |
+| `approvalMode` | `manual` | 危险工具审批模式：`manual` / `suggest` / `full-auto` |
 | `pricing` | 可选 | `{input, output}` 每百万 token 价；留空则不计成本 |
 
 ## 会话日志
@@ -104,7 +110,7 @@ bun build --compile bin/cli.tsx --outfile zent
 
 ## 设计取舍（阶段 A）
 
-本版聚焦"看透 agent loop"与单列 TUI 体验。未实现（留待后续）：会话恢复、上下文摘要压缩、多 provider 实际接入、容器级沙箱、`edit_file` 宽容匹配、full-auto/suggest 多审批模式。
+本版聚焦"看透 agent loop"与单列 TUI 体验。未实现（留待后续）：会话恢复、上下文摘要压缩、多 provider 实际接入、容器级沙箱。`edit_file` 宽容匹配与 full-auto/suggest 多审批模式已在阶段 B 实现。
 
 ## License
 

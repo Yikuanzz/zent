@@ -40,13 +40,15 @@ export function App({ config, client, tools, systemPrompt, logger }: Props) {
   const [reviewing, setReviewing] = useState(false);
   const [approvalSel, setApprovalSel] = useState(0);
 
-  const mode: FocusMode = agent.pendingApproval
-    ? 'approval'
-    : agent.isRunning
-      ? 'running'
-      : reviewing
-        ? 'review'
-        : 'input';
+  const mode: FocusMode = agent.pendingSuggestPlan
+    ? 'suggest'
+    : agent.pendingApproval
+      ? 'approval'
+      : agent.isRunning
+        ? 'running'
+        : reviewing
+          ? 'review'
+          : 'input';
 
   const toolIds = useMemo(
     () => agent.items.filter((i) => i.kind === 'tool').map((i) => i.id),
@@ -54,6 +56,18 @@ export function App({ config, client, tools, systemPrompt, logger }: Props) {
   );
 
   useInput((input, key) => {
+    if (mode === 'suggest') {
+      if (key.return || input?.toLowerCase() === 'y') {
+        agent.respondApproval(true);
+        return;
+      }
+      if (key.escape || input?.toLowerCase() === 'n') {
+        agent.respondApproval(false);
+        return;
+      }
+      return;
+    }
+
     if (mode === 'approval') {
       const call = agent.pendingApproval;
       if (!call) return;
@@ -133,7 +147,19 @@ export function App({ config, client, tools, systemPrompt, logger }: Props) {
       <ConversationView items={agent.items} selectedId={reviewSel} reviewMode={mode === 'review'} />
 
       <Box marginTop={1} flexDirection="column">
-        {mode === 'approval' && agent.pendingApproval ? (
+        {mode === 'suggest' && agent.pendingSuggestPlan ? (
+          <Box flexDirection="column" paddingX={1}>
+            <Text bold color="#d79921">计划确认 (suggest mode)</Text>
+            {agent.pendingSuggestPlan.plan.steps.map((step, i) => (
+              <Text key={i} dimColor>• {step.title} [{step.status}]</Text>
+            ))}
+            <Box marginTop={1}>
+              <Text>下一步: </Text>
+              <Text color="#b8bb26">{agent.pendingSuggestPlan.nextCall.name}</Text>
+            </Box>
+            <Text dimColor>Enter/Y 批准并继续 · Esc/N 取消</Text>
+          </Box>
+        ) : mode === 'approval' && agent.pendingApproval ? (
           <ApprovalPrompt call={agent.pendingApproval} selected={approvalSel} />
         ) : mode === 'running' ? (
           <Spinner usage={agent.usage} startedAt={agent.runStartedAt} />
@@ -142,12 +168,12 @@ export function App({ config, client, tools, systemPrompt, logger }: Props) {
             <Box paddingX={1}>
               <Text dimColor>review · ↑/↓ select · enter toggle · esc back</Text>
             </Box>
-            <StatusBar usage={agent.usage} contextWindow={config.contextWindow} cwd={config.cwd} model={config.model} cost={agent.cost} />
+            <StatusBar usage={agent.usage} contextWindow={config.contextWindow} cwd={config.cwd} model={config.model} cost={agent.cost} approvalMode={config.approvalMode} />
           </>
         ) : (
           <>
             <InputBox active={mode === 'input'} cwd={config.cwd} onSubmit={handleSubmit} />
-            <StatusBar usage={agent.usage} contextWindow={config.contextWindow} cwd={config.cwd} model={config.model} cost={agent.cost} />
+            <StatusBar usage={agent.usage} contextWindow={config.contextWindow} cwd={config.cwd} model={config.model} cost={agent.cost} approvalMode={config.approvalMode} />
           </>
         )}
       </Box>

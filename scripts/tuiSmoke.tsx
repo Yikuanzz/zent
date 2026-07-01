@@ -25,6 +25,7 @@ const config: Config = {
   keepRecentTurns: 50,
   contextWindow: 128000,
   cwd: process.cwd(),
+  approvalMode: 'manual',
 };
 
 const instance = render(

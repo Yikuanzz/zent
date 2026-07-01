@@ -16,9 +16,11 @@
 import type {
   AgentEvent,
   ApprovalDecision,
+  ApprovalMode,
   Config,
   LLMClient,
   Message,
+  PlanStep,
   Tool,
   ToolCall,
 } from './types.ts';
@@ -55,11 +57,15 @@ export async function* runAgent(
   opts: RunAgentOptions,
 ): AsyncGenerator<AgentEvent, void, ApprovalDecision> {
   const { messages, client, config, signal, tools } = opts;
+  const approvalMode: ApprovalMode = config.approvalMode ?? 'manual';
   const toolSpecList = Object.values(tools).map((t) => ({
     name: t.name,
     description: t.description,
     schema: t.schema,
   }));
+
+  let planSteps: PlanStep[] = [];
+  let planApproved = approvalMode === 'full-auto';
 
   for (let i = 0; i < config.maxIterations; i++) {
     if (signal.aborted) {
@@ -113,11 +119,24 @@ export async function* runAgent(
 
       yield ev.toolStart(call, tool.dangerous);
 
-      // 4. Dangerous tool → pause for approval via generator two-way value.
+      // 4. Dangerous tool → approval flow depends on mode.
       let approved = true;
       if (tool.dangerous) {
-        const decision: ApprovalDecision = yield ev.approvalRequired(call);
-        approved = decision?.approved === true;
+        if (approvalMode === 'full-auto') {
+          approved = true;
+        } else if (approvalMode === 'manual') {
+          const decision: ApprovalDecision = yield ev.approvalRequired(call);
+          approved = decision?.approved === true;
+        } else {
+          // suggest mode
+          if (planApproved) {
+            approved = true;
+          } else {
+            const decision: ApprovalDecision = yield ev.suggestPlanApproval(planSteps, call);
+            approved = decision?.approved === true;
+            if (approved) planApproved = true;
+          }
+        }
       }
       if (!approved) {
         yield ev.toolDenied(call);
@@ -136,6 +155,7 @@ export async function* runAgent(
       const durationMs = Date.now() - startedAt;
 
       if (call.name === 'update_plan' && toolResult.plan) {
+        planSteps = toolResult.plan;
         yield ev.planUpdate(toolResult.plan);
       }
       yield ev.toolEnd(call.id, call.name, toolResult.ok, toolResult.summary, toolResult.full, durationMs);

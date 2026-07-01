@@ -38,6 +38,7 @@ export interface UseAgent {
   cost: number | null;
   iteration: number;
   pendingApproval: ToolCall | null;
+  pendingSuggestPlan: { plan: PlanState; nextCall: ToolCall } | null;
   runStartedAt: number;
   submit: (displayText: string, modelText?: string) => void;
   respondApproval: (approved: boolean, remember?: boolean) => void;
@@ -55,6 +56,7 @@ export function useAgent(args: UseAgentArgs): UseAgent {
   const [usage, setUsage] = useState<TokenUsage | null>(null);
   const [iteration, setIteration] = useState(0);
   const [pendingApproval, setPendingApproval] = useState<ToolCall | null>(null);
+  const [pendingSuggestPlan, setPendingSuggestPlan] = useState<{ plan: PlanState; nextCall: ToolCall } | null>(null);
   const [runStartedAt, setRunStartedAt] = useState(0);
 
   const messagesRef = useRef<Message[]>([{ role: 'system', content: systemPrompt }]);
@@ -181,6 +183,10 @@ export function useAgent(args: UseAgentArgs): UseAgent {
       case 'error':
         setItems((prev) => [...prev, { kind: 'error', id: nextId(), text: e.message }]);
         break;
+      case 'suggest_plan_approval':
+        pendingCallRef.current = e.nextCall;
+        setPendingSuggestPlan({ plan: { steps: e.plan }, nextCall: e.nextCall });
+        break;
       case 'aborted':
         setItems((prev) => [...prev, { kind: 'error', id: nextId(), text: '已中断当前任务。' }]);
         break;
@@ -253,6 +259,26 @@ export function useAgent(args: UseAgentArgs): UseAgent {
                 }
                 pending = decision;
               }
+            } else if (value.type === 'suggest_plan_approval') {
+              const nextCall = value.nextCall;
+              pendingCallRef.current = nextCall;
+              setPendingSuggestPlan({ plan: { steps: value.plan }, nextCall });
+              const decision = await new Promise<ApprovalDecision>((resolve) => {
+                approvalResolver.current = resolve;
+              });
+              approvalResolver.current = null;
+              setPendingSuggestPlan(null);
+              pendingCallRef.current = null;
+              if (decision?.approved) {
+                setItems((prev) =>
+                  prev.map((it) =>
+                    it.kind === 'tool' && it.callId === nextCall.id
+                      ? { ...it, status: 'running', summary: `${nextCall.name} running…` }
+                      : it,
+                  ),
+                );
+              }
+              pending = decision;
             } else {
               applyEvent(value);
             }
@@ -311,6 +337,7 @@ export function useAgent(args: UseAgentArgs): UseAgent {
     cost,
     iteration,
     pendingApproval,
+    pendingSuggestPlan,
     runStartedAt,
     submit,
     respondApproval,

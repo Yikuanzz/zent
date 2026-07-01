@@ -7,7 +7,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
-import type { Config, Pricing } from './core/types.ts';
+import type { ApprovalMode, Config, Pricing } from './core/types.ts';
 
 // Default config directory and path
 export const DEFAULT_CONFIG_DIR = join(homedir(), '.zent');
@@ -29,6 +29,7 @@ export interface CliOverrides {
   cwd?: string; // Working directory
   baseUrl?: string; // Base URL for the API
   apiKey?: string; // API key
+  approvalMode?: string; // 'manual' | 'suggest' | 'full-auto'
 }
 
 interface RawConfig {
@@ -41,6 +42,17 @@ interface RawConfig {
   pricing?: Pricing;
   contextWindow?: number;
   cwd?: string;
+  approvalMode?: string;
+}
+
+const VALID_APPROVAL_MODES: ApprovalMode[] = ['manual', 'suggest', 'full-auto'];
+
+function parseApprovalMode(raw: string | undefined, source: string): ApprovalMode {
+  const value = raw?.trim();
+  if (!value) return 'manual';
+  if (VALID_APPROVAL_MODES.includes(value as ApprovalMode)) return value as ApprovalMode;
+  console.warn(`[zent] 非法 approvalMode (${source}): "${value}"，回退为 manual`);
+  return 'manual';
 }
 
 export class ConfigError extends Error {}
@@ -65,6 +77,11 @@ export function loadConfig(overrides: CliOverrides = {}): Config {
   const baseUrl = overrides.baseUrl ?? raw.baseUrl ?? process.env.OPENAI_BASE_URL;
   const apiKey = overrides.apiKey ?? raw.apiKey ?? process.env.OPENAI_API_KEY;
   const model = overrides.model ?? raw.model ?? process.env.MODEL;
+
+  const approvalMode = parseApprovalMode(
+    overrides.approvalMode ?? raw.approvalMode,
+    overrides.approvalMode ? 'CLI' : 'config',
+  );
 
   const missing: string[] = [];
   if (!baseUrl) missing.push('baseUrl');
@@ -94,5 +111,6 @@ export function loadConfig(overrides: CliOverrides = {}): Config {
     pricing: raw.pricing,
     contextWindow: raw.contextWindow ?? DEFAULTS.contextWindow,
     cwd: overrides.cwd ?? raw.cwd ?? process.cwd(),
+    approvalMode,
   };
 }
