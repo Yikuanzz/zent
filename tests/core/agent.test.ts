@@ -42,6 +42,10 @@ function makeConfig(over: Partial<Config> = {}): Config {
     contextWindow: 128000,
     cwd: process.cwd(),
     approvalMode: 'manual',
+    shellSafety: 'strict',
+    shellBlacklist: [],
+    shellWhitelist: [],
+    allowShellRedirectOutsideCwd: false,
     ...over,
   };
 }

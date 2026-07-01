@@ -102,6 +102,10 @@ bun build --compile bin/cli.tsx --outfile zent
 | `keepRecentTurns` | 20 | 历史滑动窗口保留轮数 |
 | `contextWindow` | 128000 | 上下文窗口（状态栏占比用） |
 | `approvalMode` | `manual` | 危险工具审批模式：`manual` / `suggest` / `full-auto` |
+| `shellSafety` | `strict` | `strict` 启用完整默认黑名单，`permissive` 只拦截最危险命令 |
+| `shellBlacklist` | `[]` | 额外黑名单正则字符串数组 |
+| `shellWhitelist` | `[]` | 白名单正则字符串数组，命中则跳过黑名单检查 |
+| `allowShellRedirectOutsideCwd` | `false` | 是否允许输出重定向到工作目录外 |
 | `pricing` | 可选 | `{input, output}` 每百万 token 价；留空则不计成本 |
 
 ## 会话日志

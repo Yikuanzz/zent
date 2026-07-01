@@ -160,4 +160,12 @@ export interface Config {
   cwd: string;
   /** Dangerous tool approval mode. */
   approvalMode: ApprovalMode;
+  /** Shell command safety level. */
+  shellSafety: 'strict' | 'permissive';
+  /** Extra regex strings added to the shell command blacklist. */
+  shellBlacklist: string[];
+  /** Regex strings that bypass the shell command blacklist. */
+  shellWhitelist: string[];
+  /** Whether to allow output redirection outside the working directory. */
+  allowShellRedirectOutsideCwd: boolean;
 }

@@ -7,6 +7,7 @@
  */
 import { spawn } from 'node:child_process';
 import type { Tool, ToolResult } from '../types.ts';
+import { checkShellSafety } from './shellSafety.ts';
 
 function runCommand(
   command: string,
@@ -44,6 +45,12 @@ export const runShellTool: Tool = {
   async run(args, ctx): Promise<ToolResult> {
     const command = String(args.command ?? '');
     if (!command) return { ok: false, summary: '缺少 command 参数', full: '错误: 必须提供 command 参数' };
+
+    const safety = checkShellSafety(command, ctx);
+    if (!safety.safe) {
+      return { ok: false, summary: `安全拦截: ${command}`, full: safety.reason ?? '命令被安全策略拦截' };
+    }
+
     const { code, stdout, stderr } = await runCommand(command, ctx.cwd, ctx.signal);
     const ok = code === 0;
     const full =

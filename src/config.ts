@@ -43,6 +43,10 @@ interface RawConfig {
   contextWindow?: number;
   cwd?: string;
   approvalMode?: string;
+  shellSafety?: string;
+  shellBlacklist?: string[];
+  shellWhitelist?: string[];
+  allowShellRedirectOutsideCwd?: boolean;
 }
 
 const VALID_APPROVAL_MODES: ApprovalMode[] = ['manual', 'suggest', 'full-auto'];
@@ -53,6 +57,17 @@ function parseApprovalMode(raw: string | undefined, source: string): ApprovalMod
   if (VALID_APPROVAL_MODES.includes(value as ApprovalMode)) return value as ApprovalMode;
   console.warn(`[zent] 非法 approvalMode (${source}): "${value}"，回退为 manual`);
   return 'manual';
+}
+
+function parseShellSafety(raw: string | undefined): 'strict' | 'permissive' {
+  const value = raw?.trim();
+  if (value === 'permissive') return 'permissive';
+  return 'strict';
+}
+
+function parseStringArray(raw: unknown): string[] {
+  if (Array.isArray(raw) && raw.every((x) => typeof x === 'string')) return raw as string[];
+  return [];
 }
 
 export class ConfigError extends Error {}
@@ -83,6 +98,11 @@ export function loadConfig(overrides: CliOverrides = {}): Config {
     overrides.approvalMode ? 'CLI' : 'config',
   );
 
+  const shellSafety = parseShellSafety(raw.shellSafety);
+  const shellBlacklist = parseStringArray(raw.shellBlacklist);
+  const shellWhitelist = parseStringArray(raw.shellWhitelist);
+  const allowShellRedirectOutsideCwd = raw.allowShellRedirectOutsideCwd === true;
+
   const missing: string[] = [];
   if (!baseUrl) missing.push('baseUrl');
   if (!apiKey) missing.push('apiKey');
@@ -112,5 +132,9 @@ export function loadConfig(overrides: CliOverrides = {}): Config {
     contextWindow: raw.contextWindow ?? DEFAULTS.contextWindow,
     cwd: overrides.cwd ?? raw.cwd ?? process.cwd(),
     approvalMode,
+    shellSafety,
+    shellBlacklist,
+    shellWhitelist,
+    allowShellRedirectOutsideCwd,
   };
 }
