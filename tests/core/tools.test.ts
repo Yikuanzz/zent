@@ -19,6 +19,9 @@ function ctx(overrides: Partial<Config> = {}): ToolContext {
     shellBlacklist: [],
     shellWhitelist: [],
     allowShellRedirectOutsideCwd: false,
+    enableSummarization: true,
+    summarizeThreshold: 0.7,
+    summarizeMinMessages: 6,
     ...overrides,
   } as Config;
   return { cwd: dir, signal: new AbortController().signal, config };

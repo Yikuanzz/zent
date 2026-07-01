@@ -150,6 +150,12 @@ export interface Config {
   model: string;
   maxIterations: number;
   maxToolOutputChars: number;
+  /** Whether automatic summarization of old history is enabled. */
+  enableSummarization: boolean;
+  /** Fraction of contextWindow at which to trigger summarization (0..1). */
+  summarizeThreshold: number;
+  /** Minimum number of recent messages to keep uncompressed. */
+  summarizeMinMessages: number;
   /** Number of recent non-system turns to keep when truncating history. */
   keepRecentTurns: number;
   /** Optional; when absent, Cost is not computed (only token counts shown). */

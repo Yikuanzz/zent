@@ -30,6 +30,9 @@ const config: Config = {
   shellBlacklist: [],
   shellWhitelist: [],
   allowShellRedirectOutsideCwd: false,
+  enableSummarization: true,
+  summarizeThreshold: 0.7,
+  summarizeMinMessages: 6,
 };
 
 const instance = render(

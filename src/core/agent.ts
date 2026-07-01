@@ -79,7 +79,7 @@ export async function* runAgent(
     let result;
     try {
       result = yield* streamModel(client, {
-        messages: prepareForModel(messages, config),
+        messages: await prepareForModel(messages, config, client, signal),
         tools: toolSpecList,
         signal,
       });

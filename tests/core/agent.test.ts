@@ -46,6 +46,9 @@ function makeConfig(over: Partial<Config> = {}): Config {
     shellBlacklist: [],
     shellWhitelist: [],
     allowShellRedirectOutsideCwd: false,
+    enableSummarization: false,
+    summarizeThreshold: 0.7,
+    summarizeMinMessages: 6,
     ...over,
   };
 }

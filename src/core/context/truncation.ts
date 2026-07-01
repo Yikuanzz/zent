@@ -9,6 +9,21 @@
  */
 import type { Message } from '../types.ts';
 
+/** Rough token estimator: chars / 4. Good enough for budget checks. */
+export function estimateTokens(messages: Message[]): number {
+  let chars = 0;
+  for (const m of messages) {
+    chars += (m.content ?? '').length;
+    if (m.tool_calls) {
+      for (const tc of m.tool_calls) {
+        chars += tc.name.length;
+        chars += JSON.stringify(tc.args).length;
+      }
+    }
+  }
+  return Math.ceil(chars / 4);
+}
+
 /** D: truncate an oversized tool output, preserving head and tail. */
 export function truncateOutput(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;

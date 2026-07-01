@@ -47,6 +47,9 @@ interface RawConfig {
   shellBlacklist?: string[];
   shellWhitelist?: string[];
   allowShellRedirectOutsideCwd?: boolean;
+  enableSummarization?: boolean;
+  summarizeThreshold?: number;
+  summarizeMinMessages?: number;
 }
 
 const VALID_APPROVAL_MODES: ApprovalMode[] = ['manual', 'suggest', 'full-auto'];
@@ -63,6 +66,19 @@ function parseShellSafety(raw: string | undefined): 'strict' | 'permissive' {
   const value = raw?.trim();
   if (value === 'permissive') return 'permissive';
   return 'strict';
+}
+
+function parseBool(raw: unknown, fallback: boolean): boolean {
+  if (typeof raw === 'boolean') return raw;
+  return fallback;
+}
+
+function parseNumberInRange(raw: unknown, fallback: number, min: number, max: number): number {
+  if (typeof raw === 'number' && !isNaN(raw)) {
+    const v = Math.max(min, Math.min(max, raw));
+    return v;
+  }
+  return fallback;
 }
 
 function parseStringArray(raw: unknown): string[] {
@@ -103,6 +119,10 @@ export function loadConfig(overrides: CliOverrides = {}): Config {
   const shellWhitelist = parseStringArray(raw.shellWhitelist);
   const allowShellRedirectOutsideCwd = raw.allowShellRedirectOutsideCwd === true;
 
+  const enableSummarization = parseBool(raw.enableSummarization, true);
+  const summarizeThreshold = parseNumberInRange(raw.summarizeThreshold, 0.7, 0, 1);
+  const summarizeMinMessages = Math.max(2, Math.round(raw.summarizeMinMessages ?? 6));
+
   const missing: string[] = [];
   if (!baseUrl) missing.push('baseUrl');
   if (!apiKey) missing.push('apiKey');
@@ -136,5 +156,8 @@ export function loadConfig(overrides: CliOverrides = {}): Config {
     shellBlacklist,
     shellWhitelist,
     allowShellRedirectOutsideCwd,
+    enableSummarization,
+    summarizeThreshold,
+    summarizeMinMessages,
   };
 }

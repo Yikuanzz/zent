@@ -106,6 +106,9 @@ bun build --compile bin/cli.tsx --outfile zent
 | `shellBlacklist` | `[]` | 额外黑名单正则字符串数组 |
 | `shellWhitelist` | `[]` | 白名单正则字符串数组，命中则跳过黑名单检查 |
 | `allowShellRedirectOutsideCwd` | `false` | 是否允许输出重定向到工作目录外 |
+| `enableSummarization` | `true` | token 接近阈值时是否自动摘要旧历史 |
+| `summarizeThreshold` | `0.7` | 触发摘要的上下文窗口占比 (0..1) |
+| `summarizeMinMessages` | `6` | 摘要时至少保留多少条最近消息不压缩 |
 | `pricing` | 可选 | `{input, output}` 每百万 token 价；留空则不计成本 |
 
 ## 会话日志
