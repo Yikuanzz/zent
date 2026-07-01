@@ -22,6 +22,20 @@ import type {
 import type { SessionLogger } from '../core/logger.ts';
 import type { DisplayItem, PlanState } from './types.ts';
 
+/** Pure reducer: merge a plan update into the display item list.
+ *  Replaces the most recent plan item if one exists; otherwise appends. */
+export function mergePlanUpdate(prev: DisplayItem[], steps: PlanState['steps'], nextId: () => number): DisplayItem[] {
+  for (let idx = prev.length - 1; idx >= 0; idx--) {
+    const it = prev[idx];
+    if (it && it.kind === 'plan') {
+      const next = [...prev];
+      next[idx] = { ...it, steps };
+      return next;
+    }
+  }
+  return [...prev, { kind: 'plan', id: nextId(), steps }];
+}
+
 interface UseAgentArgs {
   config: Config;
   client: LLMClient;
@@ -154,18 +168,11 @@ export function useAgent(args: UseAgentArgs): UseAgent {
         break;
       case 'plan_update':
         setPlan({ steps: e.steps });
-        // Render the plan inline (single-column layout). Replace the trailing
-        // plan block if the previous item is already a plan, so consecutive
-        // updates collapse into one evolving checklist.
-        setItems((prev) => {
-          const last = prev[prev.length - 1];
-          if (last && last.kind === 'plan') {
-            const next = [...prev];
-            next[next.length - 1] = { ...last, steps: e.steps };
-            return next;
-          }
-          return [...prev, { kind: 'plan', id: nextId(), steps: e.steps }];
-        });
+        // Render the plan inline (single-column layout). Replace the most
+        // recent plan block, so consecutive updates collapse into one evolving
+        // checklist even if other items (tools, errors) were inserted between
+        // two update_plan calls.
+        setItems((prev) => mergePlanUpdate(prev, e.steps, nextId));
         break;
       case 'token_usage':
         setUsage(e.usage);
