@@ -8,6 +8,10 @@
  *
  * This same generator is driven by the TUI (src/tui/useAgent.ts) and by the
  * headless script (scripts/runHeadless.ts).
+ *
+ * The loop defensively handles multiple tool_calls emitted by the model in a
+ * single assistant turn: it executes them sequentially and appends a response
+ * for every tool_call_id, keeping the messages array valid for the API.
  */
 import type {
   AgentEvent,
@@ -94,51 +98,55 @@ export async function* runAgent(
       return;
     }
 
-    // Single tool per turn.
-    const call = result.toolCalls[0]!;
-    const tool = tools[call.name];
+    // 3. Execute every tool_call sequentially. Even though we prefer one tool
+    //    per turn (system prompt + parallel_tool_calls=false), some providers
+    //    still emit multiple tool_calls at once. We must append a response for
+    //    each tool_call_id to keep the messages array valid.
+    for (const call of result.toolCalls) {
+      const tool = tools[call.name];
 
-    if (!tool) {
-      appendToolResult(messages, call, `错误: 未知工具 "${call.name}"`);
-      yield ev.toolEnd(call.id, call.name, false, `未知工具: ${call.name}`, '', 0);
-      continue;
-    }
+      if (!tool) {
+        appendToolResult(messages, call, `错误: 未知工具 "${call.name}"`);
+        yield ev.toolEnd(call.id, call.name, false, `未知工具: ${call.name}`, '', 0);
+        continue;
+      }
 
-    yield ev.toolStart(call, tool.dangerous);
+      yield ev.toolStart(call, tool.dangerous);
 
-    // 3. Dangerous tool → pause for approval via generator two-way value.
-    let approved = true;
-    if (tool.dangerous) {
-      const decision: ApprovalDecision = yield ev.approvalRequired(call);
-      approved = decision?.approved === true;
-    }
-    if (!approved) {
-      yield ev.toolDenied(call);
-      appendToolResult(messages, call, '[用户拒绝执行该工具调用]');
-      continue;
-    }
+      // 4. Dangerous tool → pause for approval via generator two-way value.
+      let approved = true;
+      if (tool.dangerous) {
+        const decision: ApprovalDecision = yield ev.approvalRequired(call);
+        approved = decision?.approved === true;
+      }
+      if (!approved) {
+        yield ev.toolDenied(call);
+        appendToolResult(messages, call, '[用户拒绝执行该工具调用]');
+        continue;
+      }
 
-    // 4. Execute. Failures become observations — the loop does NOT abort.
-    const startedAt = Date.now();
-    let toolResult;
-    try {
-      toolResult = await tool.run(call.args, { cwd: config.cwd, signal, config });
-    } catch (e) {
-      toolResult = { ok: false, summary: `工具异常: ${call.name}`, full: String(e) };
-    }
-    const durationMs = Date.now() - startedAt;
+      // 5. Execute. Failures become observations — the loop does NOT abort.
+      const startedAt = Date.now();
+      let toolResult;
+      try {
+        toolResult = await tool.run(call.args, { cwd: config.cwd, signal, config });
+      } catch (e) {
+        toolResult = { ok: false, summary: `工具异常: ${call.name}`, full: String(e) };
+      }
+      const durationMs = Date.now() - startedAt;
 
-    if (call.name === 'update_plan' && toolResult.plan) {
-      yield ev.planUpdate(toolResult.plan);
-    }
-    yield ev.toolEnd(call.id, call.name, toolResult.ok, toolResult.summary, toolResult.full, durationMs);
+      if (call.name === 'update_plan' && toolResult.plan) {
+        yield ev.planUpdate(toolResult.plan);
+      }
+      yield ev.toolEnd(call.id, call.name, toolResult.ok, toolResult.summary, toolResult.full, durationMs);
 
-    appendToolResult(messages, call, truncateOutput(toolResult.full, config.maxToolOutputChars));
+      appendToolResult(messages, call, truncateOutput(toolResult.full, config.maxToolOutputChars));
 
-    // 5. finish terminates the loop.
-    if (call.name === 'finish') {
-      yield ev.finish(toolResult.full);
-      return;
+      // 6. finish terminates the loop immediately.
+      if (call.name === 'finish') {
+        yield ev.finish(toolResult.full);
+        return;
+      }
     }
   }
 

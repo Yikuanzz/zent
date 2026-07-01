@@ -95,6 +95,10 @@ export function createOpenAIClient(config: Config): LLMClient {
           messages: toOpenAIMessages(messages),
           tools: toOpenAITools(tools),
           stream: true,
+          // Ask the model to emit one tool call at a time. Not all providers
+          // honor this, so the agent loop also defensively handles multi-call
+          // assistant messages by executing every tool_call sequentially.
+          parallel_tool_calls: false,
           stream_options: { include_usage: true },
         },
         { signal },
